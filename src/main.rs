@@ -186,7 +186,10 @@ fn build_stopwords() -> HashSet<String> {
 
 fn build_dictionary() -> HashMap<String, String> {
     println!("Reading dictionary file…");
-    let file = std::fs::File::open("./polish.out").unwrap();
+    let file = brotli::Decompressor::new(
+        std::fs::File::open("./polish.out.br").unwrap(),
+        4096, /* buffer size */
+    );
     let dict = std::io::BufReader::new(file).lines().par_bridge();
 
     println!("Building dictionary HashMap…");

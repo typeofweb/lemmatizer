@@ -164,9 +164,9 @@ fn clean_up(article: &String) -> String {
     let inline_code_pattern = Regex::new(r"`[^`]*?`").unwrap();
     let link_pattern = Regex::new(r"\[(.*?)\]\(.*?\)").unwrap();
     let html_pattern = Regex::new(r"<[^>]*?>").unwrap();
-    let punctuation_pattern = Regex::new(r"[-–—_,;:!?.'”„()\[\]{}/#@$%^&*<>|`=>]").unwrap();
-    let article = code_pattern.replace_all(&article, " ").to_string();
-    let article = inline_code_pattern.replace_all(&article, " ").to_string();
+    let punctuation_pattern = Regex::new(r"\P{L}").unwrap();
+    let article = code_pattern.replace_all(&article, "").to_string();
+    let article = inline_code_pattern.replace_all(&article, "").to_string();
     let article = link_pattern.replace_all(&article, "$1").to_string();
     let article = html_pattern.replace_all(&article, " ").to_string();
     let article = punctuation_pattern.replace_all(&article, " ").to_string();

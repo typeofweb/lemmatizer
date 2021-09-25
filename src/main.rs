@@ -1,13 +1,13 @@
 use rayon::{join, prelude::*};
 use regex::{Regex, RegexBuilder};
+use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::io::BufRead;
 
 fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
     let (dictionary, stopwords) = join(build_dictionary, build_stopwords);
 
-    let files = glob::glob("./_wordpress_posts/**/*.md")
-        .expect("Failed to read _wordpress_posts directory");
+    let files = glob::glob("./data/**/*.md*").expect("Failed to read _wordpress_posts directory");
 
     let analyzed_files: Vec<(String, HashMap<String, u32>)> = files
         .par_bridge()
@@ -19,19 +19,21 @@ fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         })
         .collect();
 
-    let similarities_per_file = calculate_all_similarities(&analyzed_files);
+    println!("{}", analyzed_files.len());
 
-    const TOP_ITEMS: usize = 3;
+    let similarities_per_file = calculate_all_similarities(&analyzed_files);
 
     let top_similarities_per_files = similarities_per_file
         .iter()
         .collect::<Vec<(&String, &HashMap<String, f32>)>>()
         .par_iter()
         .map(|(permalink, val)| {
-            let mut entries = val.iter().collect::<Vec<(&String, &f32)>>();
+            let mut entries = val.into_iter().collect::<Vec<(&String, &f32)>>();
             entries.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
-            let top_permalinks = entries[..TOP_ITEMS]
+            let top_items: usize = min(entries.len(), 3);
+
+            let top_permalinks = entries[..top_items]
                 .to_vec()
                 .into_iter()
                 .map(|(key, _)| key)
@@ -50,11 +52,11 @@ fn calculate_all_similarities(
     r: &Vec<(String, HashMap<String, u32>)>,
 ) -> HashMap<String, HashMap<String, f32>> {
     let mut all_results: HashMap<String, HashMap<String, f32>> = HashMap::new();
-    for (permalink, _) in r.to_owned() {
-        all_results.insert(permalink, HashMap::new());
+    for (permalink, _) in r {
+        all_results.insert(permalink.clone(), HashMap::new());
     }
-    for (permalink1, counter1) in r.iter() {
-        for (permalink2, counter2) in r.iter() {
+    for (permalink1, counter1) in r {
+        for (permalink2, counter2) in r {
             if permalink1 == permalink2 {
                 continue;
             }
@@ -81,16 +83,16 @@ fn calculate_cosine_similarity(
     counter1: &HashMap<String, u32>,
     counter2: &HashMap<String, u32>,
 ) -> f32 {
-    let k1: HashSet<String> = counter1.keys().cloned().collect();
-    let k2: HashSet<String> = counter2.keys().cloned().collect();
-    let common_keys: HashSet<String> = k1.intersection(&k2).cloned().collect();
+    let k1 = counter1.keys().collect::<HashSet<&String>>();
+    let k2 = counter2.keys().collect::<HashSet<&String>>();
+    let common_keys = k1.intersection(&k2).collect::<HashSet<&&String>>();
 
     let r1: u32 = counter1.values().map(|x| x * x).sum();
     let r2: u32 = counter2.values().map(|x| x * x).sum();
 
     let sum: u32 = common_keys
         .into_par_iter()
-        .map(|key| counter1.get(&key).unwrap_or(&1) * counter2.get(&key).unwrap_or(&1))
+        .map(|key| counter1.get(*key).unwrap_or(&1) * counter2.get(*key).unwrap_or(&1))
         .sum();
     (sum as f32 / (r1 as f32).sqrt() / (r2 as f32).sqrt()).clamp(0.0, 1.0)
 }
@@ -135,7 +137,7 @@ fn count_words(
         .collect();
 
     for word in words {
-        *counter.entry(word.to_string()).or_insert(0) += 1;
+        *counter.entry(word).or_insert(0) += 1;
     }
 
     counter
